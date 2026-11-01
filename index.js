@@ -25,6 +25,7 @@ export async function connectToMongoDB() {
 const db = await connectToMongoDB();
 const collection = db.db("B14_A8_Events_Management");
 const eventsCollection = collection.collection("all-events");
+const joinedEventsCollection = collection.collection("joined-events");
 
 app.get("/all-events", async (req, res) => {
   try {
@@ -113,6 +114,26 @@ app.get("/my-events/:organizerEmail", async (req, res) => {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
   }
+});
+
+app.post('/joined-events', async (req, res) => {
+    try {
+        const { eventId, userEmail } = req.body;
+
+        const alreadyJoined = await joinedEventsCollection.findOne({ eventId, userEmail });
+        if (alreadyJoined) {
+            return res.status(409).json({ error: 'Already joined' });
+        }
+
+        const result = await joinedEventsCollection.insertOne({
+            ...req.body,
+            joinedAt: new Date(),
+        });
+        res.status(201).json({ message: 'Joined successfully', id: result.insertedId });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
 });
 
 // http://localhost:8000/all-events
