@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import "dotenv/config";
 
 const app = express();
@@ -50,6 +50,32 @@ app.post('/all-events', async (req, res) => {
         res.status(500).json({ error: 'Internal server error' });
     }
 }); 
+
+app.get('/all-events/:id', async (req, res) => {
+    try {
+        const eventId = req.params.id;
+        const event = await eventsCollection.findOne({ _id: new ObjectId(eventId) });
+        if (!event) {
+            return res.status(404).json({ error: 'Event not found' });
+        }
+        res.json(event);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+})
+
+app.get('/all-events/:email', async (req, res) => {
+    try {
+        const email = req.params.email;
+        const events = await eventsCollection.find({ email: email }).toArray();
+        res.json(events);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+
+})
 
 
 
