@@ -65,10 +65,25 @@ app.get('/all-events/:id', async (req, res) => {
     }
 })
 
-app.get('/all-events/:email', async (req, res) => {
+app.patch('/all-events/:id', async (req, res) => {
     try {
-        const email = req.params.email;
-        const events = await eventsCollection.find({ email: email }).toArray();
+        const eventId = req.params.id;
+        const updatedEvent = req.body;
+        const result = await eventsCollection.updateOne(
+            { _id: new ObjectId(eventId) },
+            { $set: updatedEvent }
+        );
+        res.json({ message: 'Event updated successfully', modifiedCount: result.modifiedCount });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+    })
+
+app.get('/my-events/:organizerEmail', async (req, res) => {
+    try {
+        const email = req.params.organizerEmail;
+        const events = await eventsCollection.find({ organizerEmail: email }).toArray();
         res.json(events);
     } catch (error) {
         console.error(error);
