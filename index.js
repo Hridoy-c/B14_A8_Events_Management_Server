@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { MongoClient, ObjectId } from "mongodb";
 import "dotenv/config";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const app = express();
 const port = process.env.PORT || 8000;
@@ -22,10 +23,36 @@ export async function connectToMongoDB() {
   }
 }
 
+
 const db = await connectToMongoDB();
 const collection = db.db("B14_A8_Events_Management");
 const eventsCollection = collection.collection("all-events");
 const joinedEventsCollection = collection.collection("joined-events");
+
+const JWKS = createRemoteJWKSet(
+  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`),
+);
+
+const verifyToken = async (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res.status(401).send({ msg: "Unauthorized!" });
+  }
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res.status(401).send({ msg: "Unauthorized!" });
+  }
+
+  try {
+    const { payload } = await jwtVerify(token, JWKS);
+    req.user = payload;
+    next();
+  } catch (error) {
+    return res.status(401).send({ msg: "Unauthorized!" });
+  }
+};
+
+
 
 app.get("/all-events", async (req, res) => {
   try {
@@ -37,16 +64,14 @@ app.get("/all-events", async (req, res) => {
   }
 });
 
-app.post("/all-events", async (req, res) => {
+app.post("/all-events", verifyToken, async (req, res) => {
   try {
     const newEvent = req.body;
     const result = await eventsCollection.insertOne(newEvent);
-    res
-      .status(201)
-      .json({
-        message: "Event created successfully",
-        eventId: result.insertedId,
-      });
+    res.status(201).json({
+      message: "Event created successfully",
+      eventId: result.insertedId,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Internal server error" });
@@ -69,7 +94,7 @@ app.get("/all-events/:id", async (req, res) => {
   }
 });
 
-app.patch("/all-events/:id", async (req, res) => {
+app.patch("/all-events/:id", verifyToken, async (req, res) => {
   try {
     const eventId = req.params.id;
     const updatedEvent = req.body;
@@ -87,7 +112,7 @@ app.patch("/all-events/:id", async (req, res) => {
   }
 });
 
-app.delete("/all-events/:id", async (req, res) => {
+app.delete("/all-events/:id", verifyToken, async (req, res) => {
   try {
     const eventId = req.params.id;
     const result = await eventsCollection.deleteOne({
@@ -103,7 +128,7 @@ app.delete("/all-events/:id", async (req, res) => {
   }
 });
 
-app.get("/my-events/:organizerEmail", async (req, res) => {
+app.get("/my-events/:organizerEmail", verifyToken, async (req, res) => {
   try {
     const email = req.params.organizerEmail;
     const events = await eventsCollection
@@ -116,43 +141,47 @@ app.get("/my-events/:organizerEmail", async (req, res) => {
   }
 });
 
-app.post('/joined-events', async (req, res) => {
-    try {
-        const { eventId, userEmail } = req.body;
+app.post("/joined-events", verifyToken, async (req, res) => {
+  try {
+    const { eventId, userEmail } = req.body;
 
-        const alreadyJoined = await joinedEventsCollection.findOne({ eventId, userEmail });
-        if (alreadyJoined) {
-            return res.status(409).json({ error: 'Already joined' });
-        }
-
-        const result = await joinedEventsCollection.insertOne({
-            ...req.body,
-            joinedAt: new Date(),
-        });
-        res.status(201).json({ message: 'Joined successfully', id: result.insertedId });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal server error' });
+    const alreadyJoined = await joinedEventsCollection.findOne({
+      eventId,
+      userEmail,
+    });
+    if (alreadyJoined) {
+      return res.status(409).json({ error: "Already joined" });
     }
+
+    const result = await joinedEventsCollection.insertOne({
+      ...req.body,
+      joinedAt: new Date(),
+    });
+    res
+      .status(201)
+      .json({ message: "Joined successfully", id: result.insertedId });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
-
-app.get('/joined-events/:userEmail', async (req, res) => {
-    try {
-        const userEmail = req.params.userEmail;
-        const events = await joinedEventsCollection.find({ userEmail }).toArray();
-        res.json(events);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
+app.get("/joined-events/:userEmail", verifyToken, async (req, res) => {
+  try {
+    const userEmail = req.params.userEmail;
+    const events = await joinedEventsCollection.find({ userEmail }).toArray();
+    res.json(events);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // http://localhost:8000/all-events
-if (process.env.NODE_ENV !== "production") {
+
   app.listen(port, () => {
     console.log(`Server started on port ${port}`);
   });
-}
+
 
 export default app;
