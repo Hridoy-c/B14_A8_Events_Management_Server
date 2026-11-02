@@ -136,6 +136,18 @@ app.post('/joined-events', async (req, res) => {
     }
 });
 
+
+app.get('/joined-events/:userEmail', async (req, res) => {
+    try {
+        const userEmail = req.params.userEmail;
+        const events = await joinedEventsCollection.find({ userEmail }).toArray();
+        res.json(events);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // http://localhost:8000/all-events
 if (process.env.NODE_ENV !== "production") {
   app.listen(port, () => {
