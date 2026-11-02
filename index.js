@@ -137,6 +137,10 @@ app.post('/joined-events', async (req, res) => {
 });
 
 // http://localhost:8000/all-events
-app.listen(port, () => {
-  console.log(`Server started on port ${port}`);
-});
+if (process.env.NODE_ENV !== "production") {
+  app.listen(port, () => {
+    console.log(`Server started on port ${port}`);
+  });
+}
+
+export default app;
